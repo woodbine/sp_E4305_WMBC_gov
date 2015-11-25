@@ -10,7 +10,8 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 
-#### FUNCTIONS 1.0
+#### FUNCTIONS 1.2
+import requests    # import requests to validate url
 
 def validateFilename(filename):
     filenameregex = '^[a-zA-Z0-9]+_[a-zA-Z0-9]+_[a-zA-Z0-9]+_[0-9][0-9][0-9][0-9]_[0-9QY][0-9]$'
@@ -38,26 +39,25 @@ def validateFilename(filename):
 
 def validateURL(url):
     try:
-        r = urllib2.urlopen(url)
+        r = requests.get(url, allow_redirects=True, timeout=20)
         count = 1
-        while r.getcode() == 500 and count < 4:
+        while r.status_code == 500 and count < 4:
             print ("Attempt {0} - Status code: {1}. Retrying.".format(count, r.status_code))
             count += 1
-            r = urllib2.urlopen(url)
-
+            r = requests.get(url, allow_redirects=True, timeout=20)
         sourceFilename = r.headers.get('Content-Disposition')
+
         if sourceFilename:
             ext = os.path.splitext(sourceFilename)[1].replace('"', '').replace(';', '').replace(' ', '')
-        elif r.headers['Content-Type'] == 'text/html; charset=utf-8':
-            ext = '.csv'
         else:
             ext = os.path.splitext(url)[1]
-        validURL = r.getcode() == 200
+        validURL = r.status_code == 200
         validFiletype = ext in ['.csv', '.xls', '.xlsx']
         return validURL, validFiletype
     except:
         print ("Error validating URL.")
         return False, False
+
 
 def validate(filename, file_url):
     validFilename = validateFilename(filename)
@@ -87,23 +87,32 @@ def convert_mth_strings ( mth_string ):
 #### VARIABLES 1.0
 
 entity_id = "E4305_WMBC_gov"
-urls = ["http://www.wirral.gov.uk/my-services/council-and-democracy/budgets-and-spending/payments-suppliers-and-agencies-2014-15", "http://www.wirral.gov.uk/my-services/council-and-democracy/budgets-and-spending/payments-suppliers-and-agencies-2014-15/2013-14-payments",
-       "http://www.wirral.gov.uk/my-services/council-and-democracy/budgets-and-spending/payments-suppliers-and-agencies-2014-15/2012-13-payments","http://www.wirral.gov.uk/my-services/council-and-democracy/budgets-and-spending/payments-suppliers-and-agencies-2014-15/2011-12-payments", "http://www.wirral.gov.uk/my-services/council-and-democracy/budgets-and-spending/payments-suppliers-and-agencies-2014-15/2010-11-payments"]
-
+url = "https://www.wirral.gov.uk/about-council/budgets-and-spending/payments-suppliers-and-agencies-2015-16"
 errors = 0
 data = []
 
 #### READ HTML 1.0
 
-for url in urls:
-    html = urllib2.urlopen(url)
-    soup = BeautifulSoup(html, 'lxml')
+html = urllib2.urlopen(url)
+soup = BeautifulSoup(html, 'lxml')
 
 
 #### SCRAPE DATA
 
+links = soup.find_all('tr')
+for link in links:
+    url = 'http://www.wirral.gov.uk'+link.a['href']
+    csvfile = link.text.strip().split('CSV file')[0].strip().split('Payments')[0].replace('\n', ' ').replace('payments', ' ').replace('CSV File  PDF File', ' ').replace('CSV File PDF File', ' ')
+    csvMth = csvfile[:3]
+    csvYr = csvfile.strip()[-4:]
+    csvMth = convert_mth_strings(csvMth.upper())
+    data.append([csvYr, csvMth, url])
+arch_links = soup.find('table', summary='Payments to suppliers and agencies 2015-16').find_all_next('p')
+for arch_link in arch_links:
+    url = 'http://www.wirral.gov.uk'+arch_link.a['href']
+    html = urllib2.urlopen(url)
+    soup = BeautifulSoup(html, 'lxml')
     links = soup.find_all('tr')
-
     for link in links:
         url = 'http://www.wirral.gov.uk'+link.a['href']
         csvfile = link.text.strip().split('CSV file')[0].strip().split('Payments')[0].replace('\n', ' ').replace('payments', ' ').replace('CSV File  PDF File', ' ').replace('CSV File PDF File', ' ')
@@ -133,4 +142,3 @@ if errors > 0:
 
 
 #### EOF
-
