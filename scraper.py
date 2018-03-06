@@ -87,39 +87,33 @@ def convert_mth_strings ( mth_string ):
 #### VARIABLES 1.0
 
 entity_id = "E4305_WMBC_gov"
-url = "https://www.wirral.gov.uk/about-council/budgets-and-spending/payments-suppliers-and-agencies-2015-16"
+url = "https://www.wirral.gov.uk/about-council/budgets-and-spending/payments-suppliers-and-agents"
 errors = 0
 data = []
 
 #### READ HTML 1.0
+import requests
 
-html = urllib2.urlopen(url)
-soup = BeautifulSoup(html, 'lxml')
+html = requests.get(url)
+soup = BeautifulSoup(html.text, 'lxml')
 
 
 #### SCRAPE DATA
 
-links = soup.find_all('tr')
+links = soup.find('div', 'field-item even').find_all('a')
 for link in links:
-    url = 'http://www.wirral.gov.uk'+link.a['href']
-    csvfile = link.text.strip().split('CSV file')[0].strip().split('Payments')[0].replace('\n', ' ').replace('payments', ' ').replace('CSV File  PDF File', ' ').replace('CSV File PDF File', ' ')
-    csvMth = csvfile[:3]
-    csvYr = csvfile.strip()[-4:]
-    csvMth = convert_mth_strings(csvMth.upper())
-    data.append([csvYr, csvMth, url])
-arch_links = soup.find('table', summary='Payments to suppliers and agencies 2015-16').find_all_next('p')
-for arch_link in arch_links:
-    url = 'http://www.wirral.gov.uk'+arch_link.a['href']
-    html = urllib2.urlopen(url)
-    soup = BeautifulSoup(html, 'lxml')
-    links = soup.find_all('tr')
-    for link in links:
-        url = 'http://www.wirral.gov.uk'+link.a['href']
-        csvfile = link.text.strip().split('CSV file')[0].strip().split('Payments')[0].replace('\n', ' ').replace('payments', ' ').replace('CSV File  PDF File', ' ').replace('CSV File PDF File', ' ')
-        csvMth = csvfile[:3]
-        csvYr = csvfile.strip()[-4:]
-        csvMth = convert_mth_strings(csvMth.upper())
-        data.append([csvYr, csvMth, url])
+    if 'Payments in ' in link.text:
+        url = 'http://www.wirral.gov.uk'+link['href']
+        html = requests.get(url)
+        soup = BeautifulSoup(html.text, 'lxml')
+        rows = soup.find_all('tr')
+        for row in rows:
+            csv_title = row.find('td').text
+            csvMth = csv_title.split()[0][:3]
+            csvYr = csv_title.split()[1]
+            csvMth = convert_mth_strings(csvMth.upper())
+            url = 'http://www.wirral.gov.uk'+row.find_all('td')[1].find('a')['href']
+            data.append([csvYr, csvMth, url])
 
 #### STORE DATA 1.0
 
